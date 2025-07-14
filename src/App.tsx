@@ -13,6 +13,21 @@ import { faSnooze, faExclamationTriangle, faBadgeCheck, faGear, faPause, faUnloc
 import { faCircleDot } from '@fortawesome/pro-regular-svg-icons';
 
 const BUFFER_MINUTES_TIME_DJO = 30;
+let djo_time_minutes: object = {
+		// 3: {
+		// 	start_time: time_to_minutes('11:32') - BUFFER_MINUTES_TIME_DJO,
+		// 	end_time: 	time_to_minutes('22:00') + BUFFER_MINUTES_TIME_DJO,
+		// },
+		/*5: {
+			start_time: time_to_minutes('19:00') - BUFFER_MINUTES_TIME_DJO,
+			end_time: time_to_minutes('22:00') + BUFFER_MINUTES_TIME_DJO,
+		},
+		6: {
+			start_time: time_to_minutes('09:30') - BUFFER_MINUTES_TIME_DJO,
+			end_time: time_to_minutes('13:30') + BUFFER_MINUTES_TIME_DJO,
+		},*/
+	}
+
 
 type Printer = {
 	serial?: string;
@@ -45,10 +60,11 @@ enum PrinterState {
 
 interface State {
 	printers: Printer[];
+	djo_time_minutes: Object;
 	unlock_dialog_printer_serial?: string;
 }
 
-function isWithinDjoTime(): boolean {
+/*function isWithinDjoTime(): boolean {
 	// always return on the dev build, easier that way
 	if (process.env.NODE_ENV === 'development')
 		return true;
@@ -56,24 +72,11 @@ function isWithinDjoTime(): boolean {
 	const now = moment();
 	const iso_day: number = now.isoWeekday();
 	const is_djo_day: boolean = iso_day == 5 || iso_day == 6; // 1 = monday, 7 = sunday
-	const djo_time_minutes: object = {
-		// 3: {
-		// 	start_time: time_to_minutes('11:32') - BUFFER_MINUTES_TIME_DJO,
-		// 	end_time: 	time_to_minutes('22:00') + BUFFER_MINUTES_TIME_DJO,
-		// },
-		5: {
-			start_time: time_to_minutes('19:00') - BUFFER_MINUTES_TIME_DJO,
-			end_time: time_to_minutes('22:00') + BUFFER_MINUTES_TIME_DJO,
-		},
-		6: {
-			start_time: time_to_minutes('09:30') - BUFFER_MINUTES_TIME_DJO,
-			end_time: time_to_minutes('13:30') + BUFFER_MINUTES_TIME_DJO,
-		},
-	}
+	
 	const current_time_minutes = time_to_minutes(now.format('HH:mm'));
 
-	return (is_djo_day && current_time_minutes >= djo_time_minutes[iso_day].start_time && current_time_minutes <= djo_time_minutes[iso_day].end_time);
-}
+	return (djo_time_minutes[iso_day] && current_time_minutes >= djo_time_minutes[iso_day].start_time && current_time_minutes <= djo_time_minutes[iso_day].end_time);
+}*/
 
 export default class App extends CustomComponent<{}, State> {
 	socket: any;
@@ -88,6 +91,7 @@ export default class App extends CustomComponent<{}, State> {
 				{ title: 'printer 3', state: PrinterState.PAUSE, last_print: { file: 'pending potato.gcode', md5: 'nothing' }, gcode_information: { length: 2280.2, weight: 6.86, estimated_time: 940 } },
 				{ title: 'printer 4', state: PrinterState.RUNNING, last_print: { file: 'pretty_fly_for_my_wifi.gcode' } },
 			],
+			djo_time_minutes: {},
 			unlock_dialog_printer_serial: undefined,
 		};
 		
@@ -100,7 +104,14 @@ export default class App extends CustomComponent<{}, State> {
 				printers: printers
 			});
 			console.log('printers', printers);
-		})
+		});
+		
+		this.socket.on('update djo time minutes', (djo_time_minutes) => {
+			this.setState({
+				djo_time_minutes: djo_time_minutes
+			});
+			console.log('djo_time_minutes', djo_time_minutes);
+		});
 	}
 
 	_openUnlockScreen(e: any, printer: Printer) {
@@ -114,9 +125,17 @@ export default class App extends CustomComponent<{}, State> {
 			unlock_dialog_printer_serial: undefined
 		})
 	}
+	
+	_isWithinDjoTime(): boolean {
+		const now = moment();
+		const iso_day: number = now.isoWeekday();
+		const current_time_minutes = time_to_minutes(now.format('HH:mm'));
+
+		return (this.state.djo_time_minutes[iso_day] && current_time_minutes >= this.state.djo_time_minutes[iso_day].start_time && current_time_minutes <= this.state.djo_time_minutes[iso_day].end_time);
+	}
 
 	render() {
-		const is_within_djo_time = isWithinDjoTime();
+		const is_within_djo_time = this._isWithinDjoTime();
 
 		// 4 block design
 		return (
@@ -160,15 +179,13 @@ export default class App extends CustomComponent<{}, State> {
 							display_state = 'Gepauzeerd';
 						}
 						
-						console.log(printer.state, PrinterState.PAUSE);
-
 						if (printer.state == PrinterState.RUNNING || printer.state == PrinterState.PAUSE)
 							unpaid = !printer.last_print || printer.last_accepted_md5 != printer.last_print.md5;
 
 						// only show within DJO times
-						if (unpaid && is_within_djo_time)
+						if (unpaid)
 							on_click = this._openUnlockScreen;
-
+						
 						return (
 							<TouchableArea
 								key={index}
@@ -189,12 +206,14 @@ export default class App extends CustomComponent<{}, State> {
 									</div>
 								</div>
 								<div className={'f-2-5 mt-1 flex-direction-row-center'}>
-									{!is_empty(printer.gcode_information) ?
+									{!is_empty(printer.gcode_information) && (printer.gcode_information.weight > 0 || printer.gcode_information.estimated_time > 0) ?
 										<>
 											<div className={'flex-12'}>
-												~ {printer.gcode_information.weight} gram.
+												{printer.gcode_information.weight >= 1 && <>~ {printer.gcode_information.weight} gram.</>}
 											</div>
-											~ {seconds_to_time(_.round(printer.gcode_information.estimated_time))}
+											{printer.gcode_information.estimated_time >= 1 &&
+												<>~ {seconds_to_time(_.round(printer.gcode_information.estimated_time))}</>
+											}
 										</>
 										:
 										<>
@@ -219,6 +238,7 @@ export default class App extends CustomComponent<{}, State> {
 					printer={_.find(this.state.printers, printer => printer.serial == this.state.unlock_dialog_printer_serial)}
 					close={this._closeUnlockDialog}
 					socket={this.socket}
+					isWithinDjoTime={this._isWithinDjoTime}
 				/>
 			</div>
 		);
@@ -230,6 +250,7 @@ interface AuthenticateDialogProps extends BaseProps {
 	printer?: Printer;
 	close: () => void;
 	socket: any;
+	isWithinDjoTime: Function;
 }
 
 interface AuthenticateDialogState extends BaseState {
@@ -294,63 +315,76 @@ class AuthenticateDialog extends CustomComponent<AuthenticateDialogProps, Authen
 			resuming: true,
 		});
 	}
+	
+	renderUnauthorizedContent(is_within_djo_time: boolean): React.ReactElement
+	{
+		return (is_within_djo_time ?
+			<>
+				<div className={'f-6 text-align-center'}>
+					Vraag een begeleider
+				</div>
+				{this.props.printer &&
+					<>
+						<DisplayRow label={'Bestand'} value={this.props.printer.last_print ? (this.props.printer.last_print.title || this.props.printer.last_print.file) : 'Onbekend'} className={'f-2-5 mt-3'} />
+						{this.props.printer.gcode_information &&
+							<>
+								<DisplayRow label={'Gewicht'} value={'~ ' + this.props.printer.gcode_information.weight + ' gram'} className={'f-2-5'} />
+								<DisplayRow label={'Duratie'} value={'~ ' + seconds_to_time(_.round(this.props.printer.gcode_information.estimated_time))} className={'f-2-5'} />
+							</>
+						}
+					</>
+				}
+			</>
+			:
+			<div className={'center-children'}>
+				<div className={'f-5'}>
+					Bied je iButton aan <FontAwesomeIcon icon={faCircleDot} className={'ml-1'} />
+				</div>
+			</div>
+		);
+	}
+	
+	renderAuthorizedContent(is_within_djo_time: boolean): React.ReactElement
+	{
+		if(this.state.authenticated_username == '-1')
+			return (
+				<div className={'f-5 text-align-center'}>
+					iButton niet herkend
+				</div>
+			);
+		
+		return (
+			<>
+				<div className={'f-3 text-align-center mb-3'}>
+					Gebruiker gevonden: <b>{this.state.authenticated_username}</b>
+				</div>
+				<Button onPress={this._automaticPayment}>
+					<FontAwesomeIcon icon={faArrowRight} className={'mr-2'} /> Automatisch afrekenen {is_within_djo_time ? '& hervatten' : ''}
+				</Button>
+				<Button onPress={this._manualPayment} className={'mt-3'} solid={false}>
+					<FontAwesomeIcon icon={faArrowRight} className={'mr-2'} /> Handmatig afrekenen {is_within_djo_time ? ' & hervatten' : ''}
+				</Button>
+			</>
+		);
+	}
 
-	renderContent(is_within_djo_time): React.ReactElement {
+	renderContent(is_within_djo_time: boolean): React.ReactElement {
 		if(this.state.resuming)
 			return <FontAwesomeIcon icon={faSpinner} className={'f-12'} spin />
 		
 		return (
 			<div className={'flex-direction-column'}>
-				{is_within_djo_time ?
-					(this.state.authenticated_username ? 
-						<>
-							<div className={'f-3 text-align-center mb-3'}>
-								Gebruiker gevonden: <b>{this.state.authenticated_username}</b>
-							</div>
-							<Button onPress={this._automaticPayment}>
-								<FontAwesomeIcon icon={faArrowRight} className={'mr-2'} /> Automatisch afrekenen & hervatten
-							</Button>
-							<Button onPress={this._manualPayment} className={'mt-3'} solid={false}>
-								<FontAwesomeIcon icon={faArrowRight} className={'mr-2'} /> Handmatig afrekenen & hervatten
-							</Button>
-						</>
-						:
-						<>
-							<div className={'f-6 text-align-center'}>
-								Vraag een begeleider
-							</div>
-							{this.props.printer &&
-								<>
-									<DisplayRow label={'Bestand'} value={this.props.printer.last_print ? (this.props.printer.last_print.title || this.props.printer.last_print.file) : 'Onbekend'} className={'f-2-5 mt-3'} />
-									{this.props.printer.gcode_information &&
-										<>
-											<DisplayRow label={'Gewicht'} value={'~ ' + this.props.printer.gcode_information.weight + ' gram'} className={'f-2-5'} />
-											<DisplayRow label={'Duratie'} value={'~ ' + seconds_to_time(_.round(this.props.printer.gcode_information.estimated_time))} className={'f-2-5'} />
-										</>
-									}
-								</>
-							}
-						</>
-					)
+				{(this.state.authenticated_username ? 
+					this.renderAuthorizedContent(is_within_djo_time)
 					:
-					<div className={'center-children'}>
-						<div className={'f-5'}>
-							Bied je iButton aan <FontAwesomeIcon icon={faCircleDot} className={'ml-1'} />
-						</div>
-						<div className={'f-2-5 my-2'}>
-							Of
-						</div>
-						<Button onPress={this._manualPayment}>
-							<FontAwesomeIcon icon={faArrowRight} className={'mr-2'} /> Ik reken handmatig af.
-						</Button>
-					</div>
-				}
+					this.renderUnauthorizedContent(is_within_djo_time)
+				)}
 			</div>
 		);
 	}
 
 	render(): React.ReactElement {
-		const is_within_djo_time = isWithinDjoTime();
+		const is_within_djo_time = this.props.isWithinDjoTime();
 		
 		return (
 			<div className={'position-absolute authenticate-dialog-background center-children ' + (this.props.open && 'open')}>
