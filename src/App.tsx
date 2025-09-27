@@ -10,7 +10,7 @@ import { io } from 'socket.io-client';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSnooze, faExclamationTriangle, faBadgeCheck, faGear, faPause, faUnlock, faTimes, faArrowRight, faHandHoldingDollar, faSpinner } from '@fortawesome/pro-solid-svg-icons';
-import { faCircleDot } from '@fortawesome/pro-regular-svg-icons';
+import { faCircleDot, faCamera, faSlash } from '@fortawesome/pro-regular-svg-icons';
 
 const BUFFER_MINUTES_TIME_DJO = 30;
 let djo_time_minutes: object = {
@@ -48,6 +48,7 @@ type GcodeInformation = {
 	length: number;
 	weight: number;
 	estimated_time: number;
+	preview_image_base64?: string;
 }
 
 enum PrinterState {
@@ -94,8 +95,8 @@ export default class App extends CustomComponent<{}, State> {
 			djo_time_minutes: {},
 			unlock_dialog_printer_serial: undefined,
 		};
-		
-		this.socket = io('http://' + location.hostname + ':4000'); // match your server
+		this.server_url = 'http://' + location.hostname + ':4000';
+		this.socket 	= io(this.server_url); // match your server
 	}
 
 	componentDidMount() {
@@ -140,7 +141,7 @@ export default class App extends CustomComponent<{}, State> {
 		// 4 block design
 		return (
 			<div className={'w-100 h-100 position-relative'}>
-				<div className={'width-800-px height-480-px b-2 border-color-grey flex-direction-row flex-wrap flex-justify-content-space-around flex-align-items-center'}>
+				<div className={'screen-size b-2 border-color-grey flex-direction-row flex-wrap flex-justify-content-space-around flex-align-items-center'}>
 					{_.map(this.state.printers, (printer, index) => {
 						let background = 'background-color-grey-7';
 						let border_color = 'border-color-grey';
@@ -186,6 +187,8 @@ export default class App extends CustomComponent<{}, State> {
 						if (unpaid)
 							on_click = this._openUnlockScreen;
 						
+						let print_title = (printer.last_print ? (printer.last_print.title || printer.last_print.file) : undefined);
+						
 						return (
 							<TouchableArea
 								key={index}
@@ -197,32 +200,31 @@ export default class App extends CustomComponent<{}, State> {
 									<div className={'flex-12'}>{printer.title}</div>
 									{display_state}
 								</div>
-								<div className={'flex-direction-row-center flex-1'}>
-									<div className={'flex-12 mr-3 f-6 line-height-6 active-print-filename'}>
-										{printer.last_print ? (printer.last_print.title || printer.last_print.file) : '-'}
+								{print_title &&
+									<div className={'f-4 line-height-4 active-print-filename mb-1'}>
+										{print_title}
 									</div>
-									<div className={'width-80-px center-children'}>
-										<FontAwesomeIcon icon={icon} className={'f-16 ' + (icon == faGear && 'fa-spin')} />
+								}
+								<div className={'flex-direction-row flex-12 mb-0-5'}>
+									<div className={'width-150-px mr-3 flex-direction-column '}>
+										<div className={'flex-12 center-children'}>
+											<FontAwesomeIcon icon={icon} className={'f-16 ' + (icon == faGear && 'fa-spin') + ''} />
+										</div>
+										<div className={'f-2-5 line-height-2-5'}>
+											~ {(printer.gcode_information && printer.gcode_information.weight) || 0} gram. <br />
+											~ {seconds_to_time(_.round((printer.gcode_information && printer.gcode_information.estimated_time) || 0))}
+										</div>
 									</div>
-								</div>
-								<div className={'f-2-5 mt-1 flex-direction-row-center'}>
-									{!is_empty(printer.gcode_information) && (printer.gcode_information.weight > 0 || printer.gcode_information.estimated_time > 0) ?
-										<>
-											<div className={'flex-12'}>
-												{printer.gcode_information.weight >= 1 && <>~ {printer.gcode_information.weight} gram.</>}
-											</div>
-											{printer.gcode_information.estimated_time >= 1 &&
-												<>~ {seconds_to_time(_.round(printer.gcode_information.estimated_time))}</>
-											}
-										</>
-										:
-										<>
-											<div className={'flex-12'}>
-												0 gram
-											</div>
-											00:00:00
-										</>
-									}
+									<div className={'flex-12 center-children'}>
+										{printer.gcode_information && printer.gcode_information.preview_image_base64 ? 
+											<img src={'data:image/png;base64,' + printer.gcode_information.preview_image_base64} className={'h-100'} />
+											:
+											<>
+												<FontAwesomeIcon icon={faCamera} className={'f-14'} />
+												<FontAwesomeIcon icon={faSlash} className={'f-14 position-absolute'} />
+											</>
+										}
+									</div>
 								</div>
 								{unpaid &&
 									<div className={'unpaid-overlay position-absolute border-radius-20-px center-children'}>
