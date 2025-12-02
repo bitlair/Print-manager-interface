@@ -42,6 +42,7 @@ type Printer = {
 	gcode_information?: GcodeInformation,
 	remaining_time_min?: number,
 	remaining_percentage?: number,
+	processing_new_print?: boolean,
 }
 
 type GcodeInformation = {
@@ -150,6 +151,7 @@ export default class App extends CustomComponent<{}, State> {
 						let unpaid = false;
 						let on_click = undefined;
 						let display_state = '';
+						const loading = printer.processing_new_print;
 
 						if (printer.state == PrinterState.FINISH) {
 							background = 'background-color-green';
@@ -226,9 +228,17 @@ export default class App extends CustomComponent<{}, State> {
 										}
 									</div>
 								</div>
-								{unpaid &&
+								{unpaid && !loading &&
 									<div className={'unpaid-overlay position-absolute border-radius-20-px center-children'}>
 										<FontAwesomeIcon icon={(is_within_djo_time ? faUnlock : faHandHoldingDollar)} className={'f-20 mr-4'} />
+									</div>
+								}
+								{loading &&
+									<div className={'loading-overlay color-white position-absolute border-radius-20-px flex-direction-column center-children'}>
+										<FontAwesomeIcon icon={faSpinner} className={'f-20 mr-4'} spin />
+										<div className={'f-5 margin-auto mt-3'}>
+											Bestand uitlezen
+										</div>
 									</div>
 								}
 							</TouchableArea>
