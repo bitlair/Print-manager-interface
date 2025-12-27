@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { JSX, JSXElementConstructor } from 'react'
 import CustomComponent, { BaseProps, BaseState } from './libs/CustomComponent';
 import TouchableArea from './libs/TouchableArea';
 import './globals/Defaults.less';
@@ -9,7 +9,7 @@ import { is_empty, time_to_minutes, seconds_to_time } from './libs/Functions';
 import { io } from 'socket.io-client';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSnooze, faExclamationTriangle, faBadgeCheck, faGear, faPause, faUnlock, faTimes, faArrowRight, faHandHoldingDollar, faSpinner } from '@fortawesome/pro-solid-svg-icons';
+import { faSnooze, faExclamationTriangle, faBadgeCheck, faGear, faPause, faUnlock, faTimes, faArrowRight, faHandHoldingDollar, faSpinner, faCircle } from '@fortawesome/pro-solid-svg-icons';
 import { faCircleDot, faCamera, faSlash } from '@fortawesome/pro-regular-svg-icons';
 
 const BUFFER_MINUTES_TIME_DJO = 30;
@@ -29,6 +29,11 @@ let djo_time_minutes: object = {
 	}
 
 
+type PrinterImage = {
+	filename?: string,
+	base64: string,
+}
+
 type Printer = {
 	serial?: string;
 	title: string;
@@ -42,7 +47,7 @@ type Printer = {
 	gcode_information?: GcodeInformation,
 	remaining_time_min?: number,
 	remaining_percentage?: number,
-	processing_new_print?: boolean,
+	processing_new_print?: boolean
 }
 
 type GcodeInformation = {
@@ -50,6 +55,7 @@ type GcodeInformation = {
 	weight: number;
 	estimated_time: number;
 	preview_image_base64?: string;
+	available_images?: Array<PrinterImage>;
 }
 
 enum PrinterState {
@@ -64,6 +70,7 @@ interface State {
 	printers: Printer[];
 	djo_time_minutes: Object;
 	unlock_dialog_printer_serial?: string;
+	image_index: number;
 }
 
 /*function isWithinDjoTime(): boolean {
@@ -95,9 +102,15 @@ export default class App extends CustomComponent<{}, State> {
 			],
 			djo_time_minutes: {},
 			unlock_dialog_printer_serial: undefined,
+			image_index: 0,
 		};
-		this.server_url = 'http://' + location.hostname + ':4000';
-		this.socket 	= io(this.server_url); // match your server
+
+		if (process.env.NODE_ENV === 'development')
+			this.server_url = 'http://printmanager.local:4000';
+		else 
+			this.server_url = 'http://' + location.hostname + ':4000';
+		
+		this.socket = io(this.server_url); // match your server
 	}
 
 	componentDidMount() {
@@ -114,6 +127,15 @@ export default class App extends CustomComponent<{}, State> {
 			});
 			console.log('djo_time_minutes', djo_time_minutes);
 		});
+
+		this.changeImageInterval = setInterval(this._increaseShownImageIndex, 2000);
+	}
+
+	_increaseShownImageIndex()
+	{
+		this.setState({
+			image_index: this.state.image_index + 1,
+		})
 	}
 
 	_openUnlockScreen(e: any, printer: Printer) {
@@ -136,6 +158,42 @@ export default class App extends CustomComponent<{}, State> {
 		return (this.state.djo_time_minutes[iso_day] && current_time_minutes >= this.state.djo_time_minutes[iso_day].start_time && current_time_minutes <= this.state.djo_time_minutes[iso_day].end_time);
 	}
 
+	_renderImages(gcode_information)
+	{
+		
+		if(gcode_information)
+		{
+			if(!_.isEmpty(gcode_information.available_images) && gcode_information.available_images.length > 1)
+			{
+				const amount_of_images 	= _.size(gcode_information.available_images);
+				const image_index 		= this.state.image_index % amount_of_images;
+
+				return (
+					<>
+						<div className='flex-12 h-100 flex-direction-row flex-justify-content-center'>
+							<img src={'data:image/png;base64,' + gcode_information.available_images[image_index].base64} className={'h-100'} />
+						</div>
+						<div className={'flex-direction-column center-children'}>
+							{_.map(_.times(amount_of_images), (index) => {
+								return <FontAwesomeIcon icon={faCircle} className={'my-0-5 f-1 color-' + (index == image_index ? 'dark-blue' : 'grey')} />
+							})}
+						</div>
+					</>
+				);
+			}
+
+			if(gcode_information.preview_image_base64)
+				return <img src={'data:image/png;base64,' + gcode_information.preview_image_base64} className={'h-100'} />;
+		}
+
+		return (
+			<>
+				<FontAwesomeIcon icon={faCamera} className={'f-14'} />
+				<FontAwesomeIcon icon={faSlash} className={'f-14 position-absolute'} />
+			</>
+		);
+	}
+	
 	render() {
 		const is_within_djo_time = this._isWithinDjoTime();
 
@@ -217,15 +275,8 @@ export default class App extends CustomComponent<{}, State> {
 											~ {seconds_to_time(_.round((printer.gcode_information && printer.gcode_information.estimated_time) || 0))}
 										</div>
 									</div>
-									<div className={'flex-12 center-children'}>
-										{printer.gcode_information && printer.gcode_information.preview_image_base64 ? 
-											<img src={'data:image/png;base64,' + printer.gcode_information.preview_image_base64} className={'h-100'} />
-											:
-											<>
-												<FontAwesomeIcon icon={faCamera} className={'f-14'} />
-												<FontAwesomeIcon icon={faSlash} className={'f-14 position-absolute'} />
-											</>
-										}
+									<div className={'flex-12 center-children flex-direction-row'}>
+										{this._renderImages(printer.gcode_information)}
 									</div>
 								</div>
 								{unpaid && !loading &&
