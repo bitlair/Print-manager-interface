@@ -5,87 +5,49 @@ import './globals/Defaults.less';
 import './App.less';
 import _ from 'lodash';
 import moment from 'moment';
-import { is_empty, time_to_minutes, seconds_to_time } from './libs/Functions';
+import { time_to_minutes, seconds_to_time } from './libs/Functions';
 import { io } from 'socket.io-client';
-
+import PrinterOverview from './PrinterOverview';
+import { Printer, PrinterState } from './Printer';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSnooze, faExclamationTriangle, faBadgeCheck, faGear, faPause, faUnlock, faTimes, faArrowRight, faHandHoldingDollar, faSpinner, faCircle } from '@fortawesome/pro-solid-svg-icons';
-import { faCircleDot, faCamera, faSlash } from '@fortawesome/pro-regular-svg-icons';
+import { faSquare, faCog, faSquare1, faSquare2, faSquare3, faSquare4 } from '@fortawesome/pro-regular-svg-icons';
+import { faSquare1 as faSquare1Solid, faSquare2 as faSquare2Solid, faSquare3 as faSquare3Solid, faSquare4 as faSquare4Solid } from '@fortawesome/pro-solid-svg-icons';
+import PrinterView from './PrinterView';
+import AuthenticateDialog from './Dialogs/AuthenticateDialog';
+import Button from './libs/Button';
+import SettingsView from './SettingsView';
+
+moment.locale('nl');
 
 const BUFFER_MINUTES_TIME_DJO = 30;
 let djo_time_minutes: object = {
-		// 3: {
-		// 	start_time: time_to_minutes('11:32') - BUFFER_MINUTES_TIME_DJO,
-		// 	end_time: 	time_to_minutes('22:00') + BUFFER_MINUTES_TIME_DJO,
-		// },
-		/*5: {
-			start_time: time_to_minutes('19:00') - BUFFER_MINUTES_TIME_DJO,
-			end_time: time_to_minutes('22:00') + BUFFER_MINUTES_TIME_DJO,
-		},
-		6: {
-			start_time: time_to_minutes('09:30') - BUFFER_MINUTES_TIME_DJO,
-			end_time: time_to_minutes('13:30') + BUFFER_MINUTES_TIME_DJO,
-		},*/
-	}
-
-
-type PrinterImage = {
-	filename?: string,
-	base64: string,
-}
-
-type Printer = {
-	serial?: string;
-	title: string;
-	last_print?: { 
-		file?: string, 
-		md5?: string, 
-		title?: string
-	} | null; // Optional property
-	state: PrinterState,
-	last_accepted_md5?: string,
-	gcode_information?: GcodeInformation,
-	remaining_time_min?: number,
-	remaining_percentage?: number,
-	processing_new_print?: boolean
-}
-
-type GcodeInformation = {
-	length: number;
-	weight: number;
-	estimated_time: number;
-	preview_image_base64?: string;
-	available_images?: Array<PrinterImage>;
-}
-
-enum PrinterState {
-	IDLE = "IDLE",
-	ERROR = "ERROR",
-	FINISH = "FINISH",
-	RUNNING = "RUNNING",
-	PAUSE = "PAUSE",
+	// 3: {
+	// 	start_time: time_to_minutes('11:32') - BUFFER_MINUTES_TIME_DJO,
+	// 	end_time: 	time_to_minutes('22:00') + BUFFER_MINUTES_TIME_DJO,
+	// },
+	/*5: {
+		start_time: time_to_minutes('19:00') - BUFFER_MINUTES_TIME_DJO,
+		end_time: time_to_minutes('22:00') + BUFFER_MINUTES_TIME_DJO,
+	},
+	6: {
+		start_time: time_to_minutes('09:30') - BUFFER_MINUTES_TIME_DJO,
+		end_time: time_to_minutes('13:30') + BUFFER_MINUTES_TIME_DJO,
+	},*/
 }
 
 interface State {
 	printers: Printer[];
 	djo_time_minutes: Object;
+	active_page: Page;
+	view_printer_index: number,
 	unlock_dialog_printer_serial?: string;
-	image_index: number;
 }
 
-/*function isWithinDjoTime(): boolean {
-	// always return on the dev build, easier that way
-	if (process.env.NODE_ENV === 'development')
-		return true;
-
-	const now = moment();
-	const iso_day: number = now.isoWeekday();
-	const is_djo_day: boolean = iso_day == 5 || iso_day == 6; // 1 = monday, 7 = sunday
-	
-	const current_time_minutes = time_to_minutes(now.format('HH:mm'));
-
-	return (djo_time_minutes[iso_day] && current_time_minutes >= djo_time_minutes[iso_day].start_time && current_time_minutes <= djo_time_minutes[iso_day].end_time);
-}*/
+enum Page {
+	OVERVIEW,
+	VIEW,
+	SETTINGS
+}
 
 export default class App extends CustomComponent<{}, State> {
 	socket: any;
@@ -95,14 +57,15 @@ export default class App extends CustomComponent<{}, State> {
 
 		this.state = {
 			printers: [
-				{ title: 'printer 1', state: PrinterState.IDLE },
-				{ title: 'printer 2', state: PrinterState.FINISH, last_print: { file: 'finished print.gcode' } },
-				{ title: 'printer 3', state: PrinterState.PAUSE, last_print: { file: 'pending potato.gcode', md5: 'nothing' }, gcode_information: { length: 2280.2, weight: 6.86, estimated_time: 940 } },
-				{ title: 'printer 4', state: PrinterState.RUNNING, last_print: { file: 'pretty_fly_for_my_wifi.gcode' } },
+				{ title: 'printer 1', serial: '1', state: PrinterState.OFFLINE },
+				{ title: 'printer 2', serial: '2', state: PrinterState.FINISH, last_print: { file: 'finished print.gcode' } },
+				{ title: 'printer 3', serial: '3', state: PrinterState.PAUSE, last_print: { file: 'pending potato.gcode', md5: 'nothing' }, gcode_information: { length: 2280.2, weight: 6.86, estimated_time: 940 } },
+				{ title: 'printer 4', serial: '4', state: PrinterState.RUNNING, last_print: { file: 'pretty_fly_for_my_wifi.gcode' } },
 			],
 			djo_time_minutes: {},
+			active_page: Page.OVERVIEW,
+			view_printer_index: 0,
 			unlock_dialog_printer_serial: undefined,
-			image_index: 0,
 		};
 
 		if (process.env.NODE_ENV === 'development')
@@ -110,31 +73,58 @@ export default class App extends CustomComponent<{}, State> {
 		else 
 			this.server_url = 'http://' + location.hostname + ':4000';
 		
-		this.socket = io(this.server_url); // match your server
+		this.socket = io(this.server_url);
 	}
 
 	componentDidMount() {
 		this.socket.on('update printer data', (printers) => {
-			this.setState({
-				printers: printers
-			});
-			console.log('printers', printers);
+			if(!_.isEqual(printers, this.state.printers))
+			{
+				this.setState({
+					printers: printers
+				});
+
+				console.log('printers', printers);
+			}
+			
 		});
 		
 		this.socket.on('update djo time minutes', (djo_time_minutes) => {
 			this.setState({
 				djo_time_minutes: djo_time_minutes
 			});
+			
 			console.log('djo_time_minutes', djo_time_minutes);
 		});
-
-		this.changeImageInterval = setInterval(this._increaseShownImageIndex, 2000);
 	}
 
-	_increaseShownImageIndex()
+	_isWithinDjoTime(): boolean {
+		const now = moment();
+		const iso_day: number = now.isoWeekday();
+		const current_time_minutes = time_to_minutes(now.format('HH:mm'));
+
+		return (this.state.djo_time_minutes[iso_day] && current_time_minutes >= this.state.djo_time_minutes[iso_day].start_time && current_time_minutes <= this.state.djo_time_minutes[iso_day].end_time);
+	}
+
+	_openOverview()
 	{
 		this.setState({
-			image_index: this.state.image_index + 1,
+			active_page: Page.OVERVIEW
+		});
+	}
+
+	_openPrinter(e, index: number)
+	{
+		this.setState({
+			active_page: Page.VIEW,
+			view_printer_index: index
+		});
+	}
+
+	_openSettings()
+	{
+		this.setState({
+			active_page: Page.SETTINGS
 		})
 	}
 
@@ -147,359 +137,80 @@ export default class App extends CustomComponent<{}, State> {
 	_closeUnlockDialog() {
 		this.setState({
 			unlock_dialog_printer_serial: undefined
-		})
-	}
-	
-	_isWithinDjoTime(): boolean {
-		const now = moment();
-		const iso_day: number = now.isoWeekday();
-		const current_time_minutes = time_to_minutes(now.format('HH:mm'));
-
-		return (this.state.djo_time_minutes[iso_day] && current_time_minutes >= this.state.djo_time_minutes[iso_day].start_time && current_time_minutes <= this.state.djo_time_minutes[iso_day].end_time);
+		});
 	}
 
-	_renderImages(gcode_information)
-	{
-		
-		if(gcode_information)
-		{
-			if(!_.isEmpty(gcode_information.available_images) && gcode_information.available_images.length > 1)
-			{
-				const amount_of_images 	= _.size(gcode_information.available_images);
-				const image_index 		= this.state.image_index % amount_of_images;
-
-				return (
-					<>
-						<div className='flex-12 h-100 flex-direction-row flex-justify-content-center'>
-							<img src={'data:image/png;base64,' + gcode_information.available_images[image_index].base64} className={'h-100'} />
-						</div>
-						<div className={'flex-direction-column center-children'}>
-							{_.map(_.times(amount_of_images), (index) => {
-								return <FontAwesomeIcon icon={faCircle} className={'my-0-5 f-1 color-' + (index == image_index ? 'dark-blue' : 'grey')} />
-							})}
-						</div>
-					</>
-				);
-			}
-
-			if(gcode_information.preview_image_base64)
-				return <img src={'data:image/png;base64,' + gcode_information.preview_image_base64} className={'h-100'} />;
-		}
-
-		return (
-			<>
-				<FontAwesomeIcon icon={faCamera} className={'f-14'} />
-				<FontAwesomeIcon icon={faSlash} className={'f-14 position-absolute'} />
-			</>
-		);
-	}
-	
 	render() {
 		const is_within_djo_time = this._isWithinDjoTime();
 
 		// 4 block design
 		return (
 			<div className={'w-100 h-100 position-relative'}>
-				<div className={'screen-size b-2 border-color-grey flex-direction-row flex-wrap flex-justify-content-space-around flex-align-items-center'}>
-					{_.map(this.state.printers, (printer, index) => {
-						let background = 'background-color-grey-7';
-						let border_color = 'border-color-grey';
-						let icon = faSnooze;
-						let color = 'color-dark-grey';
-						let unpaid = false;
-						let on_click = undefined;
-						let display_state = '';
-						const loading = printer.processing_new_print;
-
-						if (printer.state == PrinterState.FINISH) {
-							background = 'background-color-green';
-							border_color = 'border-color-dark-green';
-							color = 'color-white';
-							icon = faBadgeCheck;
-							display_state = 'Afgerond';
-						}
-						else if (printer.state == PrinterState.ERROR) {
-							background = 'background-color-orange';
-							border_color = 'border-color-red';
-							color = 'color-white';
-							icon = faExclamationTriangle;
-							display_state = 'Foutmelding';
-						}
-						else if (printer.state == PrinterState.RUNNING) {
-							background = 'background-color-blue';
-							border_color = 'border-color-dark-blue';
-							color = 'color-white';
-							icon = faGear;
-							display_state = 'Bezig ' + (printer.remaining_percentage || 0) + '% ' + (printer.remaining_time_min > 0 ? printer.remaining_time_min + ' min.' : '' );
-						}
-						else if (printer.state == PrinterState.PAUSE) {
-							background = 'background-color-yellow';
-							border_color = 'border-color-orange';
-							color = 'color-white';
-							icon = faPause;
-							display_state = 'Gepauzeerd';
-						}
-						
-						if (printer.state == PrinterState.RUNNING || printer.state == PrinterState.PAUSE)
-							unpaid = !printer.last_print || printer.last_accepted_md5 != printer.last_print.md5;
-
-						// only show within DJO times
-						if (unpaid)
-							on_click = this._openUnlockScreen;
-						
-						let print_title = (printer.last_print ? (printer.last_print.title || printer.last_print.file) : undefined);
-						
-						return (
-							<TouchableArea
-								key={index}
-								onPress={on_click}
-								onPressParams={printer}
-								className={'position-relative border-radius-10-px b-2 flex-direction-column ' + border_color + ' printer-block text-bold ' + color + ' px-2 py-1 ' + background}
-							>
-								<div className={'flex-direction-row-center mb-1 f-2-5'}>
-									<div className={'flex-12'}>{printer.title}</div>
-									{display_state}
-								</div>
-								{print_title &&
-									<div className={'f-4 line-height-4 active-print-filename mb-1'}>
-										{print_title}
+				<div className={'screen-size b-2 border-color-grey flex-direction-row'}>
+					<div className={'p-1 br-3 border-color-grey flex-direction-column'}>
+						<TouchableArea onPress={this._openOverview} className={'flex-direction-column line-height-3 border-radius center-children background-color-' + (this.state.active_page == Page.OVERVIEW ? 'dark-blue' : 'blue') + ' color-white height-55-px width-55-px f-3 mb-2'}>
+							<div className='flex-direction-row'>
+								<FontAwesomeIcon icon={faSquare} className='fa-square' />
+								<FontAwesomeIcon icon={faSquare} className='fa-square' />
+							</div>
+							<div className='flex-direction-row'>
+								<FontAwesomeIcon icon={faSquare} className='fa-square' />
+								<FontAwesomeIcon icon={faSquare} className='fa-square' />
+							</div>
+						</TouchableArea>
+						{_.map(this.state.printers, (printer: Printer, index: number) => {
+							return (
+								<TouchableArea key={printer.serial} onPress={this._openPrinter} onPressParams={index} className={'flex-direction-column border-radius center-children background-color-' + (this.state.active_page == Page.VIEW && this.state.view_printer_index == index ? 'dark-blue' : 'blue') + ' color-white height-55-px width-55-px f-3 mb-2'}>
+									<div className='flex-direction-row'>
+										<FontAwesomeIcon icon={(index == 0 ? faSquare1Solid : faSquare1)} className='fa-square' />
+										<FontAwesomeIcon icon={(index == 1 ? faSquare2Solid : faSquare2)} className='fa-square' />
 									</div>
-								}
-								<div className={'flex-direction-row flex-12 mb-0-5'}>
-									<div className={'width-150-px mr-3 flex-direction-column '}>
-										<div className={'flex-12 center-children'}>
-											<FontAwesomeIcon icon={icon} className={'f-16 ' + (icon == faGear && 'fa-spin') + ''} />
-										</div>
-										<div className={'f-2-5 line-height-2-5'}>
-											~ {(printer.gcode_information && printer.gcode_information.weight) || 0} gram. <br />
-											~ {seconds_to_time(_.round((printer.gcode_information && printer.gcode_information.estimated_time) || 0))}
-										</div>
+									<div className='flex-direction-row'>
+										<FontAwesomeIcon icon={(index == 2 ? faSquare3Solid : faSquare3)} className='fa-square' />
+										<FontAwesomeIcon icon={(index == 3 ? faSquare4Solid : faSquare4)} className='fa-square' />
 									</div>
-									<div className={'flex-12 center-children flex-direction-row'}>
-										{this._renderImages(printer.gcode_information)}
-									</div>
-								</div>
-								{unpaid && !loading &&
-									<div className={'unpaid-overlay position-absolute border-radius-20-px center-children'}>
-										<FontAwesomeIcon icon={(is_within_djo_time ? faUnlock : faHandHoldingDollar)} className={'f-20 mr-4'} />
-									</div>
-								}
-								{loading &&
-									<div className={'loading-overlay color-white position-absolute border-radius-20-px flex-direction-column center-children'}>
-										<FontAwesomeIcon icon={faSpinner} className={'f-20 mr-4'} spin />
-										<div className={'f-5 margin-auto mt-3'}>
-											Bestand uitlezen
-										</div>
-									</div>
-								}
-							</TouchableArea>
-						);
-					})}
-				</div>
-				<AuthenticateDialog
-					open={this.state.unlock_dialog_printer_serial !== undefined}
-					printer={_.find(this.state.printers, printer => printer.serial == this.state.unlock_dialog_printer_serial)}
-					close={this._closeUnlockDialog}
-					socket={this.socket}
-					isWithinDjoTime={this._isWithinDjoTime}
-				/>
-			</div>
-		);
-	}
-}
-
-interface AuthenticateDialogProps extends BaseProps {
-	open: boolean;
-	printer?: Printer;
-	close: () => void;
-	socket: any;
-	isWithinDjoTime: Function;
-}
-
-interface AuthenticateDialogState extends BaseState {
-	authenticated_username?: string;
-	resuming: boolean
-}
-
-class AuthenticateDialog extends CustomComponent<AuthenticateDialogProps, AuthenticateDialogState> {
-	static defaultProps: { cache: boolean } = {
-		cache: true
-	}
-	
-	constructor(props) {
-		super(props);
-		
-		this.state = {
-			resuming: 				false,
-			authenticated_username: undefined,
-		};
-	}
-	
-	componentDidMount(): void {
-		this.props.socket.on('user authenticated', (username) => {
-			this.setState({
-				authenticated_username: username
-			});
-		});
-	}
-
-	componentDidUpdate(prevProps) {
-		console.log(this.props.printer);
-		if (this.props.open && this.props.printer)
-		{
-			this.props.socket.emit('select printer', this.props.printer.serial);
-			
-			if(this.state.resuming && this.props.printer.state != "PAUSE")
-				this.props.close();
-		}
-		else {
-			if (this.state.authenticated_username || this.state.resuming)
-				this.setState({
-					resuming:				false,
-					authenticated_username: undefined
-				});
-			
-			this.props.socket.emit('deselect printer');
-		}
-	}
-
-	_manualPayment(): void {
-		this.props.socket.emit('accept print', false);
-		
-		this.setState({
-			resuming: true,
-		});
-	}
-	
-	_automaticPayment(): void {
-		this.props.socket.emit('accept print', true);
-		
-		this.setState({
-			resuming: true,
-		});
-	}
-	
-	renderUnauthorizedContent(is_within_djo_time: boolean): React.ReactElement
-	{
-		return (is_within_djo_time ?
-			<>
-				<div className={'f-6 text-align-center'}>
-					Vraag een begeleider
-				</div>
-				{this.props.printer &&
-					<>
-						<DisplayRow label={'Bestand'} value={this.props.printer.last_print ? (this.props.printer.last_print.title || this.props.printer.last_print.file) : 'Onbekend'} className={'f-2-5 mt-3'} />
-						{this.props.printer.gcode_information &&
-							<>
-								<DisplayRow label={'Gewicht'} value={'~ ' + this.props.printer.gcode_information.weight + ' gram'} className={'f-2-5'} />
-								<DisplayRow label={'Duratie'} value={'~ ' + seconds_to_time(_.round(this.props.printer.gcode_information.estimated_time))} className={'f-2-5'} />
-							</>
-						}
-					</>
-				}
-			</>
-			:
-			<div className={'center-children'}>
-				<div className={'f-5'}>
-					Bied je iButton aan <FontAwesomeIcon icon={faCircleDot} className={'ml-1'} />
-				</div>
-			</div>
-		);
-	}
-	
-	renderAuthorizedContent(is_within_djo_time: boolean): React.ReactElement
-	{
-		if(this.state.authenticated_username == '-1')
-			return (
-				<div className={'f-5 text-align-center'}>
-					iButton niet herkend
-				</div>
-			);
-		
-		return (
-			<>
-				<div className={'f-3 text-align-center mb-3'}>
-					Gebruiker gevonden: <b>{this.state.authenticated_username}</b>
-				</div>
-				<Button onPress={this._automaticPayment}>
-					<FontAwesomeIcon icon={faArrowRight} className={'mr-2'} /> Automatisch afrekenen {is_within_djo_time ? '& hervatten' : ''}
-				</Button>
-				<Button onPress={this._manualPayment} className={'mt-3'} solid={false}>
-					<FontAwesomeIcon icon={faArrowRight} className={'mr-2'} /> Handmatig afrekenen {is_within_djo_time ? ' & hervatten' : ''}
-				</Button>
-			</>
-		);
-	}
-
-	renderContent(is_within_djo_time: boolean): React.ReactElement {
-		if(this.state.resuming)
-			return <FontAwesomeIcon icon={faSpinner} className={'f-12'} spin />
-		
-		return (
-			<div className={'flex-direction-column'}>
-				{(this.state.authenticated_username ? 
-					this.renderAuthorizedContent(is_within_djo_time)
-					:
-					this.renderUnauthorizedContent(is_within_djo_time)
-				)}
-			</div>
-		);
-	}
-
-	render(): React.ReactElement {
-		const is_within_djo_time = this.props.isWithinDjoTime();
-		
-		return (
-			<div className={'position-absolute authenticate-dialog-background center-children ' + (this.props.open && 'open')}>
-				<div className={'border-radius-10-px background-color-white p-5 flex-direction-column b-2 border-color-grey min-width-450-px'}>
-					<div className={'flex-direction-row-center mb-4'}>
-						<div className={'f-8 flex-12'}>
-							{is_within_djo_time ? 'Vrijgeven' : 'Afrekenen'}
-						</div>
-						<Button onPress={this.props.close} square={true}>
-							<FontAwesomeIcon icon={faTimes} className={'f-4 fa-square'} />
-						</Button>
+								</TouchableArea>
+							);
+						})}
+						<div className={'flex-12'} /> 
+						<TouchableArea onPress={this._openSettings} className={'b-1 border-color-black border-radius center-children height-50-px width-50-px f-5'}>
+							<FontAwesomeIcon icon={faCog} />
+						</TouchableArea>
 					</div>
-					{this.renderContent(is_within_djo_time)}
+
+					<div className={'p-1 flex-12'}>
+						{this.state.active_page == Page.OVERVIEW &&
+							<PrinterOverview
+								isWithinDjoTime={is_within_djo_time}
+								printers={this.state.printers}
+								openUnlockScreen={this._openUnlockScreen}
+							/>
+						}
+
+						{this.state.active_page == Page.VIEW &&
+							<PrinterView
+								printer={this.state.printers[this.state.view_printer_index]}
+								openUnlockScreen={this._openUnlockScreen}
+								isWithinDjoTime={is_within_djo_time}
+							/>
+						}
+
+						{this.state.active_page == Page.SETTINGS &&
+							<SettingsView
+								printers={this.state.printers}
+								socket={this.socket}
+								isWithinDjoTime={is_within_djo_time}
+							/>
+						}
+					</div>
 				</div>
-			</div>
-		);
-	}
-}
-
-interface ButtonProps extends BaseProps {
-	onPress: () => void;
-	onPressParams?: any;
-	className?: string;
-	children?: React.ReactNode;
-	square?: boolean;
-	solid?: boolean;
-}
-
-class Button extends CustomComponent<ButtonProps, {}> {
-	render(): React.ReactElement {
-		return (
-			<TouchableArea {...this.props} className={(this.props.square ? 'p-1-5' : 'px-2-5 py-1-5') + ' b-3 border-color-blue ' + (this.props.solid != false ? 'background-color-blue color-white' : 'background-color-white color-blue') + ' border-radius-25-px button ml-2 f-3 ' + this.props.className}>
-				{this.props.children}
-			</TouchableArea>
-		);
-	}
-}
-
-interface DisplayRowProps extends BaseProps {
-	label: string;
-	value: any;
-	className?: string;
-}
-
-class DisplayRow extends CustomComponent<DisplayRowProps, {}> {
-	render(): React.ReactElement {
-		return (
-			<div className={'flex-direction-row-center my-0-5 ' + this.props.className}>
-				<div className={'flex-12 mr-2'}>
-					{this.props.label}
-				</div>
-				{this.props.value}
+                <AuthenticateDialog
+                    open={this.state.unlock_dialog_printer_serial !== undefined}
+                    printer={_.find(this.state.printers, printer => printer.serial == this.state.unlock_dialog_printer_serial)}
+                    close={this._closeUnlockDialog}
+                    socket={this.socket}
+                    isWithinDjoTime={is_within_djo_time}
+                />
 			</div>
 		);
 	}

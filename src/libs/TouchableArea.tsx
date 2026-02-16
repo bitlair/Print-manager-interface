@@ -11,6 +11,7 @@ interface CommonProps
     animateClick?: boolean;
     children?: React.ReactNode;
     className?: string;
+    disabled?: boolean;
 }
 
 interface TouchableAreaState
@@ -52,6 +53,9 @@ class TouchableArea extends React.Component<CommonProps, TouchableAreaState>
 
     handlePress = (e: any) =>
     {
+        if(this.props.disabled)
+            return;
+
         const { onPress, onPressParams, debounceTime = 500, onPressWithEvent = true } = this.props;
 
         if (this.timeout)
@@ -74,7 +78,7 @@ class TouchableArea extends React.Component<CommonProps, TouchableAreaState>
             onPress,
         } = this.props;
 
-        if (!onPress)
+        if (!onPress || this.props.disabled)
             return <div className={this.props.className}>{children}</div>;
 		
         const props: any = {

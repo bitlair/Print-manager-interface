@@ -48,8 +48,16 @@ html, body {
 
 // 50% with padding around
 .printer-block {
-	width: calc(50% - 32px);
-	height: calc(50% - 32px);
+	width: calc(100% - 16px);
+	height: calc(100% - 16px);
+	margin: 8px;
+}
+
+.overview-block {
+	& .printer-block {
+		width: calc(50% - 16px);
+		height: calc(50% - 16px);
+	}
 }
 
 .active-print-filename {
