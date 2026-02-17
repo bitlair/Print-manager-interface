@@ -147,8 +147,8 @@ export default class App extends CustomComponent<{}, State> {
 		return (
 			<div className={'w-100 h-100 position-relative'}>
 				<div className={'screen-size b-2 border-color-grey flex-direction-row'}>
-					<div className={'p-1 br-3 border-color-grey flex-direction-column'}>
-						<TouchableArea onPress={this._openOverview} className={'flex-direction-column line-height-3 border-radius center-children background-color-' + (this.state.active_page == Page.OVERVIEW ? 'dark-blue' : 'blue') + ' color-white height-55-px width-55-px f-3 mb-2'}>
+					<div className={'p-1 br-3 border-color-grey flex-direction-column flex-justify-content-space-between'}>
+						<TouchableArea onPress={this._openOverview} className={'flex-direction-column line-height-3 border-radius center-children background-color-' + (this.state.active_page == Page.OVERVIEW ? 'dark-blue' : 'blue') + ' color-white height-80-px width-80-px f-5 mb-2'}>
 							<div className='flex-direction-row'>
 								<FontAwesomeIcon icon={faSquare} className='fa-square' />
 								<FontAwesomeIcon icon={faSquare} className='fa-square' />
@@ -160,7 +160,7 @@ export default class App extends CustomComponent<{}, State> {
 						</TouchableArea>
 						{_.map(this.state.printers, (printer: Printer, index: number) => {
 							return (
-								<TouchableArea key={printer.serial} onPress={this._openPrinter} onPressParams={index} className={'flex-direction-column border-radius center-children background-color-' + (this.state.active_page == Page.VIEW && this.state.view_printer_index == index ? 'dark-blue' : 'blue') + ' color-white height-55-px width-55-px f-3 mb-2'}>
+								<TouchableArea key={printer.serial} onPress={this._openPrinter} onPressParams={index} className={'flex-direction-column border-radius center-children background-color-' + (this.state.active_page == Page.VIEW && this.state.view_printer_index == index ? 'dark-blue' : 'blue') + ' color-white height-80-px width-80-px f-5 mb-2'}>
 									<div className='flex-direction-row'>
 										<FontAwesomeIcon icon={(index == 0 ? faSquare1Solid : faSquare1)} className='fa-square' />
 										<FontAwesomeIcon icon={(index == 1 ? faSquare2Solid : faSquare2)} className='fa-square' />
@@ -172,8 +172,7 @@ export default class App extends CustomComponent<{}, State> {
 								</TouchableArea>
 							);
 						})}
-						<div className={'flex-12'} /> 
-						<TouchableArea onPress={this._openSettings} className={'b-1 border-color-black border-radius center-children height-50-px width-50-px f-5'}>
+						<TouchableArea onPress={this._openSettings} className={'b-1 border-color-black border-radius center-children height-80-px width-80-px f-10'}>
 							<FontAwesomeIcon icon={faCog} />
 						</TouchableArea>
 					</div>

@@ -7,6 +7,7 @@ import { faSnooze, faExclamationTriangle, faBadgeCheck, faGear, faPause, faUnloc
 import { faCamera, faSlash } from '@fortawesome/pro-regular-svg-icons';
 import _ from "lodash";
 import Button from "./libs/Button";
+import { ReactElement } from "react";
 
 interface PrinterViewProps extends BaseProps {
     printer: Printer;
@@ -35,7 +36,7 @@ export default class PrinterView extends CustomComponent<PrinterViewProps, Print
         }
 
         if(this.props.smallDisplay)
-            this.changeImageInterval = setInterval(this._increaseShownImageIndex, 10000);
+            this.changeImageInterval = setInterval(this._increaseShownImageIndex, _.random(16, 32) * 500);
     }
     
     _increaseShownImageIndex()
@@ -111,6 +112,7 @@ export default class PrinterView extends CustomComponent<PrinterViewProps, Print
         let unpaid = false;
         let on_click = undefined;
         let display_state = '';
+        let title_bar_background_element: ReactElement = undefined;
 
         if (printer.state == PrinterState.FINISH) {
             background = 'background-color-green';
@@ -118,6 +120,7 @@ export default class PrinterView extends CustomComponent<PrinterViewProps, Print
             color = 'color-white';
             icon = faBadgeCheck;
             display_state = 'Afgerond';
+            title_bar_background_element = <div className="background-loading-bar background-color-dark-green" style={{width: '100%'}} />;
         }
         else if (printer.state == PrinterState.ERROR) {
             background = 'background-color-orange';
@@ -132,6 +135,7 @@ export default class PrinterView extends CustomComponent<PrinterViewProps, Print
             color = 'color-white';
             icon = faGear;
             display_state = 'Bezig ' + (printer.remaining_percentage || 0) + '% ' + (printer.remaining_time_min > 0 ? printer.remaining_time_min + ' min.' : '' );
+            title_bar_background_element = <div className="background-loading-bar busy background-color-blue" style={{width: printer.remaining_percentage + '%'}} />;
         }
         else if (printer.state == PrinterState.PAUSE) {
             background = 'background-color-yellow';
@@ -162,44 +166,47 @@ export default class PrinterView extends CustomComponent<PrinterViewProps, Print
             <TouchableArea
                 onPress={on_click}
                 onPressParams={printer}
-                className={'position-relative border-radius-10-px b-3 flex-direction-column ' + border_color + ' printer-block text-bold ' + color + ' px-2 py-1 ' + background}
+                className={'position-relative border-radius-10-px b-3 flex-direction-column ' + border_color + ' printer-block text-bold ' + color + ' ' + background}
             >
-                <div className={'flex-direction-row-center mb-1 ' + (this.props.smallDisplay ? 'f-2-5' : 'f-4-5')}>
+                <div className={'flex-direction-row-center position-relative bb-3 ' + border_color + ' px-2 py-1 overflow-hidden ' + (this.props.smallDisplay ? 'f-2-5' : 'f-4-5')}>
+                    {title_bar_background_element}
                     <div className={'flex-12'}>{printer.title}</div>
-                    {display_state}
+                    <div>{display_state}</div>
                 </div>
-                {print_title &&
-                    <div className={'line-height-4 active-print-filename mb-1 ' + (this.props.smallDisplay ? 'f-4' : 'f-8')}>
-                        {print_title}
-                    </div>
-                }
-                <div className={'flex-direction-row flex-12 mb-0-5'}>
-                    <div className={'mr-3 flex-direction-column ' + (this.props.smallDisplay ? 'width-150-px' : 'width-200-px')}>
-                        <div className={'flex-12 center-children'}>
-                            <FontAwesomeIcon icon={icon} className={(icon == faGear && 'fa-spin') + ' ' + (this.props.smallDisplay ? 'f-16' : 'f-22')} />
+                <div className="px-2 py-1 flex-12 flex-direction-column">
+                    {print_title &&
+                        <div className={'line-height-4 active-print-filename mb-1 ' + (this.props.smallDisplay ? 'f-4' : 'f-8')}>
+                            {print_title}
                         </div>
-                        <div className={(this.props.smallDisplay ? 'f-2-5 line-height-2-5 ' : 'f-4-5 line-height-4-5 ')}>
-                            ~ {(printer.gcode_information && printer.gcode_information.weight) || 0} gram. <br />
-                            ~ {seconds_to_time(_.round((printer.gcode_information && printer.gcode_information.estimated_time) || 0))}
+                    }
+                    <div className={'flex-direction-row flex-12 mb-0-5'}>
+                        <div className={'mr-3 flex-direction-column ' + (this.props.smallDisplay ? 'width-150-px' : 'width-200-px')}>
+                            <div className={'flex-12 center-children'}>
+                                <FontAwesomeIcon icon={icon} className={(icon == faGear && 'fa-spin') + ' ' + (this.props.smallDisplay ? 'f-16' : 'f-22')} />
+                            </div>
+                            <div className={(this.props.smallDisplay ? 'f-2-5 line-height-2-5 ' : 'f-4-5 line-height-4-5 ')}>
+                                ~ {(printer.gcode_information && printer.gcode_information.weight) || 0} gram. <br />
+                                ~ {seconds_to_time(_.round((printer.gcode_information && printer.gcode_information.estimated_time) || 0))}
+                            </div>
+                        </div>
+                        <div className={'flex-12 center-children flex-direction-row'}>
+                            {this._renderImages(printer.gcode_information)}
                         </div>
                     </div>
-                    <div className={'flex-12 center-children flex-direction-row'}>
-                        {this._renderImages(printer.gcode_information)}
-                    </div>
+                    {unpaid && !loading &&
+                        <div className={'unpaid-overlay position-absolute border-radius-20-px center-children'}>
+                            <FontAwesomeIcon icon={(this.props.isWithinDjoTime ? faUnlock : faHandHoldingDollar)} className={'f-20 mr-4'} />
+                        </div>
+                    }
+                    {loading &&
+                        <div className={'loading-overlay color-white position-absolute border-radius-20-px flex-direction-column center-children'}>
+                            <FontAwesomeIcon icon={faSpinner} className={'f-20 mr-4'} spin />
+                            <div className={'f-5 margin-auto mt-3'}>
+                                Bestand uitlezen
+                            </div>
+                        </div>
+                    }
                 </div>
-                {unpaid && !loading &&
-                    <div className={'unpaid-overlay position-absolute border-radius-20-px center-children'}>
-                        <FontAwesomeIcon icon={(this.props.isWithinDjoTime ? faUnlock : faHandHoldingDollar)} className={'f-20 mr-4'} />
-                    </div>
-                }
-                {loading &&
-                    <div className={'loading-overlay color-white position-absolute border-radius-20-px flex-direction-column center-children'}>
-                        <FontAwesomeIcon icon={faSpinner} className={'f-20 mr-4'} spin />
-                        <div className={'f-5 margin-auto mt-3'}>
-                            Bestand uitlezen
-                        </div>
-                    </div>
-                }
             </TouchableArea>
         );
     }

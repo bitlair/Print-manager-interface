@@ -20,6 +20,7 @@ interface SettingsViewState extends BaseState {
     root_active: boolean;
     djo_time_blocks: DjoTimeBlocks;
     last_paid_items: PaidItem[];
+    last_ibutton_information?: LastIbuttonInformation;
 }
 
 type TimeBlock = {
@@ -38,6 +39,11 @@ type PaidItem = {
 	username?: string;
 	ibutton_id?: string;
 	filename: string;
+}
+
+type LastIbuttonInformation = {
+    id?: string;
+    username?: string;
 }
 
 export default class SettingsView extends CustomComponent<SettingsViewProps, SettingsViewState>
@@ -108,6 +114,7 @@ export default class SettingsView extends CustomComponent<SettingsViewProps, Set
                         <DisplayRow key={day} label={'DJO tijden ' + date.format('dddd')} value={minutes_to_time(djo_time_block.start_time) + ' t/m ' + minutes_to_time(djo_time_block.end_time)} className="mb-2" />
                     );
                 })}
+                <DisplayRow label={'Laatste iButton'} value={this.state.last_ibutton_information && (this.state.last_ibutton_information.username + ' (' + this.state.last_ibutton_information.id + ')')} className="mb-2" />
                 <div className="flex-direction-row-center mb-2">
                     <Button color={'dark-blue'} onPress={this._reload}>
                         Reload
@@ -124,7 +131,7 @@ export default class SettingsView extends CustomComponent<SettingsViewProps, Set
                         </Button>
                     }
                 </div>
-                <div className="mb-5">
+                <div className="mb-4">
                     Systeem acties zijn beschikbaar buiten DJO tijden.
                 </div>
 
@@ -133,7 +140,7 @@ export default class SettingsView extends CustomComponent<SettingsViewProps, Set
                     {_.size(this.state.last_paid_items) > 0 ? 
                         _.map(_.orderBy(this.state.last_paid_items, ['datetime'], ['desc']), (paid_item, paid_item_index) => {
                             return (
-                                <div key={paid_item_index} className="mb-0-5 pb-0-5 bb-3 border-color-grey-15 flex-direction-row-center">
+                                <div key={paid_item_index} className="mb-0-5 pb-0-5 bb-1 border-color-light-grey flex-direction-row-center">
                                     <div className="width-125-px">
                                         [{moment(paid_item.datetime).format("DD MMM HH:mm")}]
                                     </div>

@@ -1,17 +1,17 @@
 .unpaid-overlay {
 	background: rgba(0,0,0,0.25);
-	top: -15px;
-	right: -15px;
-	bottom: -15px;
-	left: -15px;
+	top: -10px;
+	right: -10px;
+	bottom: -10px;
+	left: -10px;
 }
 
 .loading-overlay {
 	background: rgba(0,0,0,0.5);
-	top: -15px;
-	right: -15px;
-	bottom: -15px;
-	left: -15px;
+	top: -10px;
+	right: -10px;
+	bottom: -10px;
+	left: -10px;
 }
 
 .authenticate-dialog-background {
@@ -51,6 +51,69 @@ html, body {
 	width: calc(100% - 16px);
 	height: calc(100% - 16px);
 	margin: 8px;
+
+	.background-loading-bar {
+		position: absolute;
+		top: 0;
+		left: 0;
+		bottom: 0;
+		z-index: 0;
+		overflow: hidden;
+
+		&~* {
+			z-index: 1;
+		}
+
+		&.busy::after
+		{
+			content: '';
+			position: absolute;
+			top: 0;
+			left: -30%;
+			width: 30%;
+			height: 100%;
+
+			background: linear-gradient(
+				90deg,
+				transparent,
+				rgba(255,255,255,0.25),
+				transparent
+			);
+
+			animation: pulse-sweep 3s ease-in-out infinite;
+		}
+	}
+}
+
+@keyframes pulse-sweep
+{
+    0%
+    {
+        transform: translateX(0);
+        opacity: 0;
+    }
+
+    10%
+    {
+        opacity: 1;
+    }
+
+    40%
+    {
+        transform: translateX(400%);
+        opacity: 1;
+    }
+
+    50%
+    {
+        opacity: 0;
+    }
+
+    100%
+    {
+        transform: translateX(400%);
+        opacity: 0;
+    }
 }
 
 .overview-block {
