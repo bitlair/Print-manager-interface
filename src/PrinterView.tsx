@@ -95,7 +95,7 @@ export default class PrinterView extends CustomComponent<PrinterViewProps, Print
             </>
         );
     }
-    
+
     render()
     {
         const printer = this.props.printer;
@@ -155,13 +155,14 @@ export default class PrinterView extends CustomComponent<PrinterViewProps, Print
         
         if (printer.state == PrinterState.RUNNING || printer.state == PrinterState.PAUSE)
             unpaid = !printer.last_print || printer.last_accepted_md5 != printer.last_print.md5;
-
+        
         // only show within DJO times
         if (unpaid)
-            on_click = this._openUnlockScreen;
+            on_click = this.props.openUnlockScreen;
         
         let print_title = (printer.last_print ? (printer.last_print.title || printer.last_print.file) : undefined);
-        
+        const indexed_spools = (!_.isEmpty(this.props.printer.spool_information) ? this.props.printer.spool_information : {});
+
         return (
             <TouchableArea
                 onPress={on_click}
@@ -174,6 +175,37 @@ export default class PrinterView extends CustomComponent<PrinterViewProps, Print
                     <div>{display_state}</div>
                 </div>
                 <div className="px-2 py-1 flex-12 flex-direction-column">
+                    <div className="mb-1 flex-direction-row flex-justify-content-space-between">
+                        {_.map(_.times(4), (spool_index) => {
+                            const spool = indexed_spools[spool_index];
+                            
+                            let styles: React.CSSProperties = {};
+
+                            if(!_.isEmpty(spool) && !_.isEmpty(spool.colors))
+                            {
+                                if(_.size(spool.colors) == 1)
+                                    styles.backgroundColor = '#' + spool?.colors[0];
+                                else if(_.size(spool.colors) > 1)
+                                    // styles.background = 'linear-gradient(90deg, #' + _.join(spool.colors, ', #') + ')';
+                                {
+                                    const last_index = spool.colors.length - 1;
+
+                                    styles.background = `linear-gradient(
+                                        90deg,
+                                        ${_.map(spool.colors, (color, color_index) => {
+                                            // spread between 5% and 95%
+                                            const percent = 15 + (color_index / last_index) * 70;
+                                            return '#' + color + ' ' + percent + '%';
+                                        }).join(', ')}
+                                    )`;
+                                }
+                            }
+
+                            return (
+                                <div className={(spool ? 'b-1' : '') + ' ' + border_color + ' border-radius ' + (this.props.smallDisplay ? 'width-80-px height-20-px' : 'width-160-px height-40-px')} style={styles} />
+                            );
+                        })}
+                    </div>
                     {print_title &&
                         <div className={'line-height-4 active-print-filename mb-1 ' + (this.props.smallDisplay ? 'f-4' : 'f-8')}>
                             {print_title}

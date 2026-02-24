@@ -16,7 +16,8 @@ export type Printer = {
     gcode_information?: GcodeInformation,
     remaining_time_min?: number,
     remaining_percentage?: number,
-    processing_new_print?: boolean
+    processing_new_print?: boolean,
+    spool_information?: Spool[],
 }
 
 export type GcodeInformation = {
@@ -34,4 +35,10 @@ export enum PrinterState {
     RUNNING = "RUNNING",
     PAUSE = "PAUSE",
     OFFLINE = "OFFLINE",
+}
+
+export type Spool = {
+    type: string,
+    remaining_percentage: number
+    colors: string[];
 }

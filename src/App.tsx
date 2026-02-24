@@ -83,10 +83,9 @@ export default class App extends CustomComponent<{}, State> {
 				this.setState({
 					printers: printers
 				});
-
+				
 				console.log('printers', printers);
 			}
-			
 		});
 		
 		this.socket.on('update djo time minutes', (djo_time_minutes) => {
